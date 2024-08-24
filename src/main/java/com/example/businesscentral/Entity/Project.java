@@ -1,10 +1,13 @@
 package com.example.businesscentral.Entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.io.Serializable;
+import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.Set;
 
 @Entity
@@ -17,10 +20,13 @@ public class Project implements Serializable  {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
 private     Long id;
    private String nameP;
+   private String description;
+   private LocalDate createdDate = LocalDate.now(); // Automatically set creation date to current LocalDate
+
     @JsonIgnore
     @OneToMany(mappedBy="project")
     private Set<Ticket> tickets;
-@JsonIgnore
-     @ManyToMany
-    private Set<Team>teams;
+    @JsonBackReference
+    @ManyToMany
+    private Set<Team> teams = new HashSet<>();
 }

@@ -63,6 +63,9 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- For Maven users -->
+
+
     </dependencies>
 
     <build>

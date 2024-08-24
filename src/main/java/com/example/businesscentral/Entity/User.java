@@ -1,6 +1,8 @@
 package com.example.businesscentral.Entity;
 
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -25,9 +27,15 @@ public class User implements Serializable {
     private String usermail;
     private String usertel;
     private String userpassword;
+    private int capacity;
+    @JsonBackReference
+    @ManyToMany
 
-    @ManyToMany
+
     private Set<Team>teams;
-    @ManyToMany
-    private  Set<Notification> notifications ;
+    @JsonIgnore
+    @OneToMany(mappedBy = "assignedUser")
+    private Set<Ticket> tickets;
+@ManyToMany
+    private Set<Notification> notifications;
 }

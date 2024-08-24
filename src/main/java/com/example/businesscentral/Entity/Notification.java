@@ -15,19 +15,18 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(name = "notification") // Ensure table name matches
+
 public class Notification implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long idN;
     private String description;
     private LocalDate date;
-    private boolean read;
+    private boolean notification_read;
     private boolean enabled;
     @Enumerated(EnumType.STRING)
-    private EventType eventType;
-    @Enumerated(EnumType.STRING)
     private Category category;
-
-    @ManyToMany
-    private Set<User> users;
+@ManyToMany(mappedBy = "notifications")
+private Set<User> users;
 }

@@ -1,26 +1,34 @@
 package com.example.businesscentral.Service;
 
 import com.example.businesscentral.Entity.*;
+import com.example.businesscentral.EventRepository;
 import com.example.businesscentral.Repository.ProjectRepository;
 import com.example.businesscentral.Repository.TicketRepository;
+import com.example.businesscentral.Repository.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.time.LocalDateTime;
+import java.time.temporal.WeekFields;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 
 public class TicketService {
+    private static final double CAPACITY = 1000; // Example capacity
 
     final TicketRepository ticketInterface;
     final ProjectRepository projectInterface;
     final  EmailService emailService;
+     final UserRepository userRepository;
+   final private EventRepository eventRepository;
 
-    public Ticket createTicket(String title, String description, Long projectId) {
+    public Ticket createTicket(String title, String description, Long projectId, Integer duration, Long existingEventId) {
         Optional<Project> optionalProject = projectInterface.findById(projectId);
         if (optionalProject.isPresent()) {
             Project project = optionalProject.get();
@@ -32,72 +40,29 @@ public class TicketService {
             ticket.setProject(project);
             ticket.setCreatedDate(LocalDate.now());
             ticket.setStatus(Status.NEW);
+            ticket.setDuration(duration);
 
-            // Save the ticket
-            Ticket savedTicket = ticketInterface.save(ticket);
-
-            // Send email notifications to all teams associated with the project
-            Set<Team> teams = project.getTeams();
-            for (Team team : teams) {
-                String subject = "🚀 New Ticket Assigned to Your Project!";
-                String htmlContent = "<!DOCTYPE html>"
-                        + "<html>"
-                        + "<head>"
-                        + "<title>New Ticket Assigned</title>"
-                        + "<style>"
-                        + "body {font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #e0e0e0;}"
-                        + "table {border-collapse: collapse; width: 100%;}"
-                        + "h1 {color: #ffffff; margin: 0; padding: 20px; background-color: #b30000; text-align: center;}"
-                        + "p {color: #333333; line-height: 1.6; margin: 20px 0;}"
-                        + ".container {max-width: 600px; margin: 20px auto; background-color: #ffffff; padding: 20px; border: 2px solid #b30000; border-radius: 10px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);}"
-                        + ".header {background-color: #b30000; color: #ffffff; padding: 10px 20px; border-radius: 10px 10px 0 0;}"
-                        + ".footer {text-align: center; padding: 10px 20px; color: #777777;}"
-                        + ".button {display: inline-block; padding: 10px 20px; margin-top: 20px; font-size: 16px; color: #ffffff; background-color: #7a7a7a; border-radius: 5px; text-align: center; text-decoration: none;}"
-                        + "</style>"
-                        + "</head>"
-                        + "<body>"
-                        + "<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">"
-                        + "<tr>"
-                        + "<td align=\"center\">"
-                        + "<!-- Email Content -->"
-                        + "<table width=\"600\" cellspacing=\"0\" cellpadding=\"0\" class=\"container\">"
-                        + "<tr>"
-                        + "<td align=\"center\" class=\"header\">"
-                        + "<!-- Header -->"
-                        + "<h1>🚀 New Ticket Assigned!</h1>"
-                        + "</td>"
-                        + "</tr>"
-                        + "<tr>"
-                        + "<td align=\"left\" bgcolor=\"#ffffff\">"
-                        + "<!-- Body -->"
-                        + "<p>Hello,</p>"
-                        + "<p>A new ticket has been assigned to your project. Please find the details below:</p>"
-                        + "<p><strong>Title:</strong> " + title + "</p>"
-                        + "<p><strong>Project Name:</strong> " + project.getNameP() + "</p>"
-                        + "<p>Click the button below to view and manage the ticket:</p>"
-                        + "<p><a href=\"#\" class=\"button\">View Ticket</a></p>"
-                        + "<p>Thank you!</p>"
-                        + "</td>"
-                        + "</tr>"
-                        + "<tr>"
-                        + "<td align=\"center\" class=\"footer\">"
-                        + "<!-- Footer -->"
-                        + "<p>&copy; 2024 Your Company. All rights reserved.</p>"
-                        + "</td>"
-                        + "</tr>"
-                        + "</table>"
-                        + "</td>"
-                        + "</tr>"
-                        + "</table>"
-                        + "</body>"
-                        + "</html>";
-
-                emailService.sendHtmlEmail(team.getEmail(), subject, htmlContent);
-
-
+            if (existingEventId != null) {
+                // Associate an existing event with the ticket
+                Optional<Event> optionalEvent = eventRepository.findById(existingEventId);
+                if (optionalEvent.isPresent()) {
+                    Event event = optionalEvent.get();
+                    event.setTicket(ticket); // Associate the event with the ticket
+                    ticket.addEvent(event); // Add the event to the ticket
+                } else {
+                    throw new RuntimeException("Event not found");
+                }
+            } else {
+                // Create and add a new event for ticket creation
+                Event event = new Event();
+                event.setName("Ticket Created"); // Descriptive name
+                event.setDateEvent(LocalDate.now());
+                event.setTicket(ticket); // Associate the event with the ticket
+                ticket.addEvent(event);
             }
 
-            return savedTicket;
+            // Save the ticket (and associated events due to cascading)
+            return ticketInterface.save(ticket);
         } else {
             throw new RuntimeException("Project not found");
         }
@@ -128,10 +93,11 @@ public class TicketService {
         Optional<Ticket> optionalTicket = ticketInterface.findById(ticketId);
         if (optionalTicket.isPresent()) {
             Ticket ticket = optionalTicket.get();
+            Status oldStatus = ticket.getStatus();
             ticket.setStatus(newStatus);
 
-            // Set startDate when ticket moves to IN_PROGRESS
-            if (newStatus == Status.IN_PROGRESS && ticket.getDateS() == null) {
+            // Set startDate when ticket moves to IN_PROGRESS or ASSIGNED
+            if ((newStatus == Status.IN_PROGRESS || newStatus == Status.ASSIGNED) && ticket.getDateS() == null) {
                 ticket.setDateS(LocalDate.now());
             }
 
@@ -140,12 +106,179 @@ public class TicketService {
                 ticket.setDateF(LocalDate.now());
             }
 
+            // Create and add the event for status change
+            Event event = new Event();
+            event.setName("Status changed from " + oldStatus + " to " + newStatus);
+            event.setDateEvent(LocalDate.now());
+            event.setTicket(ticket); // Set the associated ticket
+            ticket.addEvent(event);
+
+            // Save the ticket (and associated events due to cascading)
             return ticketInterface.save(ticket);
         }
         return null; // Handle not found case based on your application's logic
     }
 
 
+    // Service method for Open tickets
+    public Map<String, Long> getOpenTicketsByWeek(LocalDate startDate, LocalDate endDate) {
+        List<Ticket> tickets = ticketInterface.findByDateSBetween(startDate, endDate);
+
+        return tickets.stream()
+                .filter(ticket -> ticket.getStatus() == Status.NEW)
+                .collect(Collectors.groupingBy(ticket -> getWeekOfYear(ticket.getDateS()), Collectors.counting()));
+    }
+
+    // Service method for In Progress tickets
+    public Map<String, Long> getInProgressTicketsByWeek(LocalDate startDate, LocalDate endDate) {
+        List<Ticket> tickets = ticketInterface.findByDateSBetween(startDate, endDate);
+
+        return tickets.stream()
+                .filter(ticket -> ticket.getStatus() == Status.IN_PROGRESS)
+                .collect(Collectors.groupingBy(ticket -> getWeekOfYear(ticket.getDateS()), Collectors.counting()));
+    }
+
+    // Service method for Resolved tickets
+    public Map<String, Long> getResolvedTicketsByWeek(LocalDate startDate, LocalDate endDate) {
+        List<Ticket> tickets = ticketInterface.findByDateSBetween(startDate, endDate);
+
+        return tickets.stream()
+                .filter(ticket -> ticket.getStatus() == Status.RESOLVED)
+                .collect(Collectors.groupingBy(ticket -> getWeekOfYear(ticket.getDateS()), Collectors.counting()));
+    }
+
+    // Service method for Closed tickets
+    public Map<String, Long> getClosedTicketsByWeek(LocalDate startDate, LocalDate endDate) {
+        List<Ticket> tickets = ticketInterface.findByDateSBetween(startDate, endDate);
+
+        return tickets.stream()
+                .filter(ticket -> ticket.getStatus() == Status.CLOSED)
+                .collect(Collectors.groupingBy(ticket -> getWeekOfYear(ticket.getDateS()), Collectors.counting()));
+    }
+    // Service method for ReOpened tickets
+    public Map<String, Long> getReOpenedTicketsByWeek(LocalDate startDate, LocalDate endDate) {
+        List<Ticket> tickets = ticketInterface.findByDateSBetween(startDate, endDate);
+
+        return tickets.stream()
+                .filter(ticket -> ticket.getStatus() == Status.REOPENED)
+                .collect(Collectors.groupingBy(ticket -> getWeekOfYear(ticket.getDateS()), Collectors.counting()));
+    }
 
 
+
+    private String getWeekOfYear(LocalDate date) {
+        WeekFields weekFields = WeekFields.of(Locale.getDefault());
+        return String.format("%d-W%02d", date.getYear(), date.get(weekFields.weekOfWeekBasedYear()));
+    }
+
+    public long getTotalTicketsByDuration(LocalDate startDate, LocalDate endDate) {
+        List<Ticket> tickets = ticketInterface.findByDateSBetween(startDate, endDate);
+        return tickets.size();
+    }
+
+
+    // Method to get the ticket count and compare it with capacity
+    public Map<String, Object> getTicketsCountAndComparison(LocalDate startDate, LocalDate endDate) {
+        long totalTickets = getTotalTicketsByDuration(startDate, endDate);
+
+        double percentageOfCapacity = (totalTickets / CAPACITY) * 100;
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalTickets", totalTickets);
+        result.put("capacity", CAPACITY);
+        result.put("percentageOfCapacity", percentageOfCapacity);
+
+        return result;
+    }
+
+    public void assignTicketToUser(Long ticketId, Long userId) {
+        // Fetch the ticket by ID
+        Ticket ticket = ticketInterface.findById(ticketId)
+                .orElseThrow(() -> new EntityNotFoundException("Ticket not found"));
+
+        // Fetch the user by ID
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+        // Get the project associated with the ticket
+        Project project = ticket.getProject();
+        if (project == null) {
+            throw new IllegalStateException("Ticket is not associated with any project");
+        }
+
+        // Check if the user is part of any team associated with the project
+        Set<Team> teams = project.getTeams();
+        if (teams == null || teams.isEmpty()) {
+            throw new IllegalStateException("Project does not have any associated teams");
+        }
+
+        boolean userInTeam = teams.stream()
+                .anyMatch(team -> team.getUsers().contains(user));
+
+        if (!userInTeam) {
+            throw new IllegalStateException("User is not part of any team associated with the project");
+        }
+
+        // Assign the ticket to the user
+        ticket.setAssignedUser(user);
+
+        // Save the updated ticket
+        ticketInterface.save(ticket);
+    }
+
+    public List<Map<String, Object>> getUserCapacityAndWorkload(LocalDate startDate, LocalDate endDate) {
+        List<User> users = userRepository.findAll();
+        long totalDays = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1; // +1 to include end date
+
+        return users.stream().map(user -> {
+            int totalCapacity = user.getCapacity();
+            // Count tickets assigned to the user within the date range and calculate total duration
+            List<Ticket> tickets = ticketInterface.findTicketsByAssignedUserAndDateRange(user, startDate, endDate);
+            int totalTicketDuration = tickets.stream().mapToInt(Ticket::getDuration).sum(); // Sum of all ticket durations
+            double workload = (double) totalTicketDuration / totalDays; // Workload per day
+            int remainingCapacity = totalCapacity - (int) workload;
+            double percentageOfCapacity = (totalTicketDuration / (double) totalCapacity) * 100; // Percentage of capacity used
+
+            Map<String, Object> userCapacityData = new HashMap<>();
+            userCapacityData.put("username", user.getUsername());
+            userCapacityData.put("totalCapacity", totalCapacity);
+            userCapacityData.put("workload", workload);
+            userCapacityData.put("remainingCapacity", remainingCapacity);
+            userCapacityData.put("percentageOfCapacity", percentageOfCapacity); // Add this line
+
+            return userCapacityData;
+        }).collect(Collectors.toList());
+    }
+    public double getAverageTicketDuration(LocalDate startDate, LocalDate endDate) {
+        List<Ticket> tickets = ticketInterface.findTicketsByDateRange(startDate, endDate);
+        long totalDuration = 0;
+        int count = 0;
+
+        for (Ticket ticket : tickets) {
+            if (ticket.getDateS() != null && ticket.getDateF() != null && ticket.getStatus() == Status.RESOLVED) {
+                Duration duration = Duration.between(ticket.getDateS().atStartOfDay(), ticket.getDateF().atStartOfDay());
+                totalDuration += duration.toDays();
+                count++;
+            }
+        }
+
+        return count > 0 ? (double) totalDuration / count : 0;
+    }
+
+
+    public List<User> getUsersByTicketId(Long ticketId) {
+        Ticket ticket = ticketInterface.findById(ticketId).orElseThrow();
+        Set<Team> teams = ticket.getProject().getTeams();
+        Set<User> users = new HashSet<>();
+        for (Team team : teams) {
+            users.addAll(team.getUsers());
+        }
+        return new ArrayList<>(users);
+    }
 }
+
+
+
+
+
+
