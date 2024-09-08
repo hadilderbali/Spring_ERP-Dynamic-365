@@ -1,5 +1,7 @@
 package com.example.businesscentral.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -15,7 +17,6 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "notification") // Ensure table name matches
 
 public class Notification implements Serializable {
     @Id
@@ -27,6 +28,11 @@ public class Notification implements Serializable {
     private boolean enabled;
     @Enumerated(EnumType.STRING)
     private Category category;
-@ManyToMany(mappedBy = "notifications")
-private Set<User> users;
+    @JsonManagedReference
+    @ManyToMany(mappedBy = "notifications", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    private Set<User> users;
+    @JsonIgnore
+
+    @ManyToOne
+    private Event event;
 }

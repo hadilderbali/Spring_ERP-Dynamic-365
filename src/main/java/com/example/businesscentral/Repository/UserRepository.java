@@ -1,11 +1,14 @@
 package com.example.businesscentral.Repository;
 
+import com.example.businesscentral.Entity.Event;
+import com.example.businesscentral.Entity.Role;
 import com.example.businesscentral.Entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Set;
 
 public interface UserRepository extends JpaRepository<User,Long> {
     /**
@@ -44,4 +47,19 @@ public interface UserRepository extends JpaRepository<User,Long> {
 
     List<User> findByUsernameContainingIgnoreCase(String name);
 
+
+    @Query("SELECT DISTINCT u FROM User u " +
+            "JOIN u.roles r " +
+            "JOIN u.tickets t " +
+            "JOIN t.events e " +
+            "WHERE r IN :roles AND e = :event")
+    List<User> findByRolesAndEvent(@Param("roles") Set<Role> roles, @Param("event") Event event);
+
+    @Query("SELECT DISTINCT u FROM User u " +
+            "JOIN u.roles r " +
+            "JOIN u.tickets t " +
+            "JOIN t.events e " +
+            "WHERE r.name IN :roleNames AND e.name = :eventName")
+    List<User> findByRoleNamesAndEventName(@Param("roleNames") Set<String> roleNames, @Param("eventName") String eventName);
 }
+

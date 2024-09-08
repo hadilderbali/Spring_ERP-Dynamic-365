@@ -2,6 +2,7 @@ package com.example.businesscentral.Entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,18 +16,19 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Project implements Serializable  {
+public class Project implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-private     Long id;
-   private String nameP;
-   private String description;
-   private LocalDate createdDate = LocalDate.now(); // Automatically set creation date to current LocalDate
-
+    private Long id;
+    private String nameP;
+    private String description;
+    private LocalDate createdDate = LocalDate.now(); // Automatically set creation date to current LocalDate
     @JsonIgnore
-    @OneToMany(mappedBy="project")
+    @OneToMany(mappedBy = "project")
     private Set<Ticket> tickets;
-    @JsonBackReference
+
+    // Avoid serialization of teams directly
+    @JsonIgnore
     @ManyToMany
     private Set<Team> teams = new HashSet<>();
 }

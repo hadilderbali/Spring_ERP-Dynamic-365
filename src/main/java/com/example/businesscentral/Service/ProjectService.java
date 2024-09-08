@@ -1,8 +1,6 @@
 package com.example.businesscentral.Service;
 
-import com.example.businesscentral.Entity.Project;
-import com.example.businesscentral.Entity.Team;
-import com.example.businesscentral.Entity.User;
+import com.example.businesscentral.Entity.*;
 import com.example.businesscentral.Repository.ProjectRepository;
 import com.example.businesscentral.Repository.TeamRepository;
 import com.example.businesscentral.Repository.UserRepository;
@@ -41,6 +39,9 @@ public class ProjectService {
 public  User createUser(User user){
         return  userRepository.save(user);
 }
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
     public Team createTeam(Team team, Set<Long> userIds) {
         // Save the team first
         Team savedTeam = teamInterface.save(team);
@@ -75,6 +76,15 @@ public  Team GetTeam(Long teamId){
         return  teamInterface.findById(teamId).orElse(null);
 }
 
+    public List<User> getUsersByRoleNamesAndEventName(Set<String> roleNames, String eventName) {
+        return userRepository.findByRoleNamesAndEventName(roleNames, eventName);
+    }
+    public User getUser (Long id){
+        return  userRepository.findById(id).orElse(null);
+    }
+    public List<User> findUsersByName(String name) {
+        return userRepository.findByUsernameContainingIgnoreCase(name);
+    }
 }
 
 

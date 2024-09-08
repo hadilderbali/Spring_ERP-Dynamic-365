@@ -1,6 +1,5 @@
 package com.example.businesscentral.Entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -9,7 +8,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.io.Serializable;
-import java.util.HashSet;
 import java.util.Set;
 
 @Entity
@@ -17,16 +15,13 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Team implements Serializable {
+public class Role implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String nameT;
-    private Integer membreInteger;
-    @JsonIgnore
-    @ManyToMany(mappedBy = "teams")
-    private Set<Project> projects = new HashSet<>();
+    private String name;  // e.g., "CREATOR", "ADMIN", "VIEWER"
+    @JsonManagedReference
 
-    @ManyToMany(mappedBy = "teams")
-    private Set<User> users = new HashSet<>();
+    @ManyToMany(mappedBy = "roles")
+    private Set<User> users;
 }

@@ -1,7 +1,7 @@
 package com.example.businesscentral.Entity;
 
 public enum Category {
-    INFO,
+    INFORMATIONAL,
     WARNING,
     ERROR,
     SUCCESS,
