@@ -37,12 +37,11 @@ public ResponseEntity<?> createTicket(
         @RequestParam("title") String title,
         @RequestParam("description") String description,
         @RequestParam("projectId") Long projectId,
-        @RequestParam("duration") Integer duration,
         @RequestParam(value = "existingEventId", required = false) Long existingEventId,
         @RequestParam(value = "file", required = false) MultipartFile file) {
 
     try {
-        Ticket ticket = ticketService.createTicket(title, description, projectId, duration, existingEventId, file);
+        Ticket ticket = ticketService.createTicket(title, description, projectId, existingEventId, file);
         return ResponseEntity.ok(Map.of("message", "Ticket created successfully with ID: " + ticket.getId()));
     } catch (IOException e) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Error creating ticket: " + e.getMessage()));

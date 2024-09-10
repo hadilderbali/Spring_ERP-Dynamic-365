@@ -26,7 +26,6 @@ private Long id;
 private String title;
   private   String description;
   private LocalDate createdDate = LocalDate.now(); // Automatically set creation date to current LocalDate
-  private Integer duration;
   private LocalDateTime dateS ;
   private   LocalDateTime dateF ;
   private   LocalDateTime deadline ;

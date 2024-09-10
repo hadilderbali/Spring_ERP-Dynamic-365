@@ -40,7 +40,7 @@ public class TicketService {
     final UserRepository userRepository;
     final private EventRepository eventRepository;
 final private ChangeLogRepository changeLogRepository;
-    public Ticket createTicket(String title, String description, Long projectId, Integer duration, Long existingEventId, MultipartFile file) throws IOException {
+    public Ticket createTicket(String title, String description, Long projectId, Long existingEventId, MultipartFile file) throws IOException {
         Optional<Project> optionalProject = projectInterface.findById(projectId);
         if (optionalProject.isPresent()) {
             Project project = optionalProject.get();
@@ -52,7 +52,6 @@ final private ChangeLogRepository changeLogRepository;
             ticket.setProject(project);
             ticket.setCreatedDate(LocalDate.now());
             ticket.setStatus(Status.NEW); // Ensure this matches your enum
-            ticket.setDuration(duration);
 
             if (file != null && !file.isEmpty()) {
                 String attachmentPath = saveFile(file);
@@ -244,24 +243,60 @@ final private ChangeLogRepository changeLogRepository;
 
 
     public List<Map<String, Object>> getUserCapacityAndWorkload(LocalDateTime startDate, LocalDateTime endDate) {
+        // Swap dates if startDate is after endDate
+        if (startDate.isAfter(endDate)) {
+            LocalDateTime temp = startDate;
+            startDate = endDate;
+            endDate = temp;
+        }
+
         List<User> users = userRepository.findAll();
         long totalDays = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1; // +1 to include end date
 
+        LocalDateTime finalStartDate = startDate;
+        LocalDateTime finalEndDate = endDate;
+
         return users.stream().map(user -> {
             int totalCapacity = user.getCapacity();
-            // Count tickets assigned to the user within the date range and calculate total duration
-            List<Ticket> tickets = ticketInterface.findTicketsByAssignedUserAndDateRange(user, startDate, endDate);
-            int totalTicketDuration = tickets.stream().mapToInt(Ticket::getDuration).sum(); // Sum of all ticket durations
-            double workload = (double) totalTicketDuration / totalDays; // Workload per day
-            int remainingCapacity = totalCapacity - (int) workload;
-            double percentageOfCapacity = (totalTicketDuration / (double) totalCapacity) * 100; // Percentage of capacity used
+            List<Ticket> tickets = ticketInterface.findTicketsByAssignedUserAndDateRange(user, finalStartDate, finalEndDate);
 
+            // Calculate total ticket duration in hours
+            long totalTicketDuration = tickets.stream().mapToLong(ticket -> {
+                LocalDateTime ticketStart = ticket.getDateS();
+                LocalDateTime ticketEnd = ticket.getDateF();
+
+                if (ticketStart != null && ticketEnd != null) {
+                    // Ensure ticketStart is before ticketEnd
+                    if (ticketStart.isAfter(ticketEnd)) {
+                        LocalDateTime temp = ticketStart;
+                        ticketStart = ticketEnd;
+                        ticketEnd = temp;
+                    }
+
+                    Duration duration = Duration.between(ticketStart, ticketEnd);
+                    return Math.max(duration.toHours(), 0);  // Convert to hours and ensure non-negative
+                }
+                return 0; // Handle null dates or invalid durations
+            }).sum();
+
+            // Debugging: Print total ticket duration
+            System.out.println("Total ticket duration (hours): " + totalTicketDuration);
+
+            // Calculate workload and percentage of capacity
+            double workload = totalDays > 0 ? (double) totalTicketDuration / totalDays : 0;
+            double percentageOfCapacity = totalCapacity > 0 ? (double) totalTicketDuration / totalCapacity * 100 : 0;
+
+            // Prepare user capacity data
             Map<String, Object> userCapacityData = new HashMap<>();
             userCapacityData.put("username", user.getUsername());
             userCapacityData.put("totalCapacity", totalCapacity);
+            userCapacityData.put("totalHoursWorked", totalTicketDuration); // Absolute value is not needed if correctly calculated
             userCapacityData.put("workload", workload);
-            userCapacityData.put("remainingCapacity", remainingCapacity);
-            userCapacityData.put("percentageOfCapacity", percentageOfCapacity); // Add this line
+            userCapacityData.put("remainingCapacity", totalCapacity - (int) workload);
+            userCapacityData.put("percentageOfCapacity", percentageOfCapacity);
+
+            // Debugging: Print user capacity data
+            System.out.println("User capacity data: " + userCapacityData);
 
             return userCapacityData;
         }).collect(Collectors.toList());
@@ -273,16 +308,15 @@ final private ChangeLogRepository changeLogRepository;
         int count = 0;
 
         for (Ticket ticket : tickets) {
-            if (ticket.getDateS() != null && ticket.getDateF() != null && ticket.getStatus() == Status.RESOLVED) {
-                Duration duration = Duration.between(ticket.getDateS().toLocalDate().atStartOfDay(), ticket.getDateF().toLocalDate().atStartOfDay());
-                totalDuration += duration.toDays();
+            if (ticket.getDateS() != null && ticket.getDateF() != null) {
+                Duration duration = Duration.between(ticket.getDateS(), ticket.getDateF());
+                totalDuration += Math.max(duration.toHours(), 0); // Ensure non-negative duration
                 count++;
             }
         }
 
         return count > 0 ? (double) totalDuration / count : 0;
     }
-
 
     public List<User> getUsersByTicketId(Long ticketId) {
         Ticket ticket = ticketInterface.findById(ticketId).orElseThrow();
